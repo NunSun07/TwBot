@@ -454,14 +454,12 @@ class TwitchFACEITBot:
         """Обробка команд від користувачів"""
         msg = message.strip().split()
 
-        # Формат: "<нік> !elo"
-        if len(msg) == 2 and msg[1].lower() == "!elo":
-            target_user = msg[0].lstrip('@')  # прибираємо @ якщо є
+        if len(msg) >= 1 and msg[0].lower() == "!elo":
+            if len(msg) > 1:  # є аргумент після !elo
+                target_user = msg[1].lstrip('@')  # тільки перше слово після !elo
+            else:  # тільки !elo
+                target_user = username
             self._handle_elo_command(target_user)
-
-        # Формат: просто "!elo"
-        elif message.strip().lower() == "!elo":
-            self._handle_elo_command(username)
 
         elif message.strip().lower() == "!checkelo":
             self._handle_checkelo_command(username)
@@ -795,6 +793,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
