@@ -58,10 +58,19 @@ class TwitchFACEITBot:
             if not os.environ.get(var):
                 logging.warning(f"⚠️ ENV змінна {var} не задана!")
 
-        self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.irc.settimeout(30)  # таймаут
-        self.irc = ssl.wrap_socket(self.irc)  # обгортка SSL
-        self.irc.connect((self.SERVER, self.PORT))  # SERVER = 'irc.chat.twitch.tv', PORT = 6697
+        # створюємо TCP сокет
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(30)
+        
+        # створюємо SSL контекст
+        context = ssl.create_default_context()
+        
+        # обгортаємо сокет SSL
+        self.irc = context.wrap_socket(sock, server_hostname=self.SERVER)
+        
+        # підключаємось до сервера
+        self.irc.connect((self.SERVER, 6697))  # SSL порт Twitch
+        
         self.running = True
 
         # Ініціалізація файлу Elo
@@ -766,4 +775,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
