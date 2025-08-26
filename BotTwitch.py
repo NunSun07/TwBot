@@ -1,5 +1,4 @@
 import socket
-import ssl
 import requests
 import time
 import json
@@ -33,8 +32,8 @@ class TwitchFACEITBot:
         self.pending_elo_thread = None
 
         # Змінні середовища
-        self.SERVER = "irc.chat.twitch.tv"
-        self.PORT = 6697  # SSL порт
+        self.SERVER = "irc.twitch.tv"
+        self.PORT = 6667  # SSL порт
         self.TOKEN = os.environ.get("TWITCH_OAUTH_TOKEN")
         self.NICK = os.environ.get("TWITCH_BOT_NICK")
         self.CHANNEL = os.environ.get("TWITCH_CHANNEL")
@@ -58,20 +57,10 @@ class TwitchFACEITBot:
             if not os.environ.get(var):
                 logging.warning(f"⚠️ ENV змінна {var} не задана!")
 
-        # створюємо TCP сокет
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(30)
-        
-        # створюємо SSL контекст
-        context = ssl.create_default_context()
-        
-        # обгортаємо сокет SSL
-        self.irc = context.wrap_socket(sock, server_hostname=self.SERVER)
-        
-        # підключаємось до сервера
-        self.irc.connect((self.SERVER, 6697))  # SSL порт Twitch
-        
-        self.running = True
+        # IRC підключення
+        self.irc = socket.socket()
+        self.irc.settimeout(30)
+        self.running = False
 
         # Ініціалізація файлу Elo
         if not os.path.exists(self.ELO_FILE):
@@ -775,5 +764,6 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
