@@ -1,5 +1,12 @@
-.env
-*.pyc
+# Python
 __pycache__/
-bot.log
-elo_history.json
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+logs/
+*.log
+
+# Railway / Heroku
+*.db
+*.sqlite3
