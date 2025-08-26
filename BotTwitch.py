@@ -1,4 +1,5 @@
 import socket
+import ssl
 import requests
 import time
 import json
@@ -32,8 +33,8 @@ class TwitchFACEITBot:
         self.pending_elo_thread = None
 
         # Змінні середовища
-        self.SERVER = "irc.twitch.tv"
-        self.PORT = 6667
+        self.SERVER = "irc.chat.twitch.tv"
+        self.PORT = 6697  # SSL порт
         self.TOKEN = os.environ.get("TWITCH_OAUTH_TOKEN")
         self.NICK = os.environ.get("TWITCH_BOT_NICK")
         self.CHANNEL = os.environ.get("TWITCH_CHANNEL")
@@ -57,10 +58,11 @@ class TwitchFACEITBot:
             if not os.environ.get(var):
                 logging.warning(f"⚠️ ENV змінна {var} не задана!")
 
-        # IRC підключення
-        self.irc = socket.socket()
-        self.irc.settimeout(30)
-        self.running = False
+        self.irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.irc.settimeout(30)  # таймаут
+        self.irc = ssl.wrap_socket(self.irc)  # обгортка SSL
+        self.irc.connect((self.SERVER, self.PORT))  # SERVER = 'irc.chat.twitch.tv', PORT = 6697
+        self.running = True
 
         # Ініціалізація файлу Elo
         if not os.path.exists(self.ELO_FILE):
@@ -233,36 +235,40 @@ class TwitchFACEITBot:
             logger.error(f"Помилка при збереженні Elo: {e}")
     
     def get_daily_elo_change(self) -> int:
-        """Отримання зміни Elo за поточний день"""
+        """Отримання зміни Elo за поточний день без врахування стартових нулів"""
         if not os.path.exists(self.ELO_FILE):
             logger.info("Файл історії не існує, денна зміна = 0")
             return 0
-            
+    
         try:
             with open(self.ELO_FILE, 'r', encoding='utf-8') as f:
                 history = json.load(f)
-            
+    
             if not history:
                 logger.info("Історія порожня, денна зміна = 0")
                 return 0
-            
+    
             today = datetime.datetime.now(self.TIMEZONE).date()
             daily_records = [
                 entry for entry in history 
                 if datetime.datetime.fromisoformat(entry['timestamp']).date() == today
             ]
-            
+    
+            # Ігноруємо перший запис із початковим 0 Elo
+            while daily_records and daily_records[0]['elo'] == 0:
+                daily_records.pop(0)
+    
             if len(daily_records) < 2:
                 logger.info("Недостатньо записів за сьогодні для розрахунку зміни")
                 return 0
-            
+    
             first_elo = daily_records[0]['elo']
             latest_elo = daily_records[-1]['elo']
             change = latest_elo - first_elo
-            
+    
             logger.info(f"Денна зміна Elo: {latest_elo} - {first_elo} = {change}")
             return change
-            
+
         except Exception as e:
             logger.error(f"Помилка при читанні історії Elo: {e}")
             return 0
@@ -760,3 +766,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
