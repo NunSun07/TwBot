@@ -162,9 +162,31 @@ class TwitchFACEITBot:
         except Exception as e:
             logger.error(f"❌ Помилка підключення до Twitch: {e}")
             return False
-    
+            
     def is_stream_live(self) -> bool:
-        return True
+        """Перевіряє, чи канал зараз в прямому ефірі"""
+        try:
+            # Переконуємось, що токен дійсний
+            self.ensure_twitch_token()
+
+            headers = {
+                'Client-ID': self.TWITCH_CLIENT_ID,
+                'Authorization': f'Bearer {self.TWITCH_APP_TOKEN}'
+            }
+            url = f"https://api.twitch.tv/helix/streams?user_login={self.CHANNEL}"
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                logger.error(f"Twitch API помилка: {response.status_code}")
+                return False
+
+            data = response.json()
+            # Якщо список не порожній, стрім активний
+            return len(data.get('data', [])) > 0
+
+        except Exception as e:
+            logger.error(f"Помилка перевірки стріму: {e}")
+            return False
 
     def send_message(self, message: str):
         """Надіслати повідомлення в чат з контролем частоти та підтримкою Unicode"""
@@ -764,6 +786,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
