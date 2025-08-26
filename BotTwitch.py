@@ -498,7 +498,7 @@ class TwitchFACEITBot:
         self.pending_elo_thread.start()
 
     def _process_elo(self, username: str):
-        """Фонова обробка та відправка Elo з обліком 4 ранку"""
+        """Фонова обробка та відправка Elo з коректним підрахунком денного приросту"""
         try:
             now = datetime.datetime.now(self.TIMEZONE)
             stats = self.get_faceit_stats(self.FACEIT_NICK)
@@ -507,99 +507,56 @@ class TwitchFACEITBot:
                 self.send_message(f"@{username} Статистика недоступна.")
                 return
 
-            # Читаємо історію Elo
+            # Читаємо існуючу історію
             if os.path.exists(self.ELO_FILE):
                 with open(self.ELO_FILE, 'r', encoding='utf-8') as f:
                     history = json.load(f)
             else:
                 history = []
 
-            # Перевіряємо, чи є перший запис після 04:00 сьогодні
+            # Витягуємо записи сьогодні після 04:00
             today = now.date()
-            first_after_4am = None
-            for entry in history:
-                entry_time = datetime.datetime.fromisoformat(entry['timestamp']).astimezone(self.TIMEZONE)
-                if entry_time.date() == today and entry_time.hour >= 4:
-                    first_after_4am = entry
-                    break
-
-            # Якщо записів після 04:00 сьогодні нема, створюємо новий із поточним Elo
-            if not first_after_4am:
-                history.append({
-                    "elo": stats['Elo'],
-                    "timestamp": now.isoformat()
-                })
-
-            # Завжди додаємо новий запис як останній
-            history.append({
-                "elo": stats['Elo'],
-                "timestamp": now.isoformat()
-            })
-
-            # Зберігаємо історію
-            with open(self.ELO_FILE, 'w', encoding='utf-8') as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
-
-            # Розрахунок денного приросту
             daily_records = [
-                entry for entry in history 
+                entry for entry in history
                 if datetime.datetime.fromisoformat(entry['timestamp']).astimezone(self.TIMEZONE).date() == today and
                 datetime.datetime.fromisoformat(entry['timestamp']).astimezone(self.TIMEZONE).hour >= 4
             ]
 
+            # Якщо перший запис після 04:00 ще не доданий, додаємо його
             if not daily_records:
-                daily_change = 0
-            else:
-                first_elo = daily_records[0]['elo']
-                latest_elo = daily_records[-1]['elo']
-                daily_change = latest_elo - first_elo
+                history.append({
+                    "elo": stats['Elo'],
+                    "timestamp": now.isoformat()
+                })
+                daily_records = [history[-1]]
 
+            # Завжди додаємо останній запис із поточним Elo
+            history.append({
+                "elo": stats['Elo'],
+                "timestamp": now.isoformat()
+            })
+            daily_records.append(history[-1])
+
+            # Зберігаємо оновлену історію
+            with open(self.ELO_FILE, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+
+            # Розрахунок денного приросту
+            first_elo = daily_records[0]['elo']
+            latest_elo = daily_records[-1]['elo']
+            daily_change = latest_elo - first_elo
             change_str = f"+{daily_change}" if daily_change > 0 else str(daily_change)
 
-            # Відправка повідомлення
+            # Відправка повідомлення в чат
             response = (
                 f"@{username} → Elo: {stats['Elo']} | "
                 f"Win: {stats['Win']} | "
                 f"Lose: {stats['Lose']} | "
                 f"{change_str}"
             )
-
             self.send_message(response)
 
-            # Оновлюємо час останнього запиту після завершення
-            self.last_elo_time = time.time()
-
-        except Exception as e:
-            logger.error(f"Помилка під час обробки !elo: {e}")
-            self.send_message(f"@{username} ❌ Сталася помилка при отриманні Elo")
-
-
-    def _process_elo(self, username: str):
-        """Фонова обробка та відправка фінальної статистики з реальною зміною Elo"""
-        try:
-            stats = self.get_faceit_stats(self.FACEIT_NICK)
-            headers = {'Authorization': f'Bearer {self.FACEIT_API_KEY}'}
-
-            # Отримуємо player_id
-            player_id = stats.get('player_id')
-            if not player_id:
-                self.send_message(f"@{username} ❌ Не вдалося знайти player_id")
-                return
-
-            wins, losses, daily_change = self._get_daily_matches(player_id, headers)
-
-            if stats['Elo'] > 0:
-                self.save_elo_record(stats['Elo'])
-
-            change_str = f"+{daily_change}" if daily_change > 0 else str(daily_change)
-            response = (
-                f"@{username} → Elo: {stats['Elo']} | "
-                f"Win: {wins} | "
-                f"Lose: {losses} | "
-                f"{change_str}"
-            )
-
-            self.send_message(response)
+            # Оновлюємо час останнього запиту
             self.last_elo_time = time.time()
 
         except Exception as e:
